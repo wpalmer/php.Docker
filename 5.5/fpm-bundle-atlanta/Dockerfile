@@ -93,7 +93,17 @@ RUN set -xe \
 		libpng12-dev \
 		libxml2-dev \
 	" \
-	&& apt-get update && apt-get install -y $buildDeps --no-install-recommends && rm -rf /var/lib/apt/lists/* \
+	&& runDeps=" \
+		libfreetype6 \
+		libicu52 \
+		libjpeg62 \
+		libmcrypt4 \
+		libmysqlclient18 \
+		libpng12-0 \
+		libxml2 \
+		locales-all \
+	" \
+	&& apt-get update && apt-get install -y $buildDeps $runDeps --no-install-recommends && rm -rf /var/lib/apt/lists/* \
 	&& apt-get update \
 	&& apt-get install -y  \
 	&& docker-php-ext-configure intl \
