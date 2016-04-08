@@ -21,8 +21,13 @@ env:
   - VERSION=5.5 VARIANT=apache
   - VERSION=5.5 VARIANT=fpm
   - VERSION=5.5 VARIANT=fpm/alpine
+  - VERSION=5.5 VARIANT=fpm-bundle-atlanta
   - VERSION=5.5 VARIANT=zts
   - VERSION=5.5 VARIANT=zts/alpine
+  - VERSION=5.3 VARIANT=
+  - VERSION=5.3 VARIANT=apache
+  - VERSION=5.3 VARIANT=fpm
+  - VERSION=5.3 VARIANT=fpm-bundle-atlanta
 
 install:
   - git clone https://github.com/docker-library/official-images.git ~/official-images
