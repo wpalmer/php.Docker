@@ -115,6 +115,7 @@ RUN set -xe \
 		libpng12-0 \
 		libxml2 \
 		locales-all \
+		msmtp \
 	" \
 	&& apt-get update && apt-get install -y $buildDeps $runDeps --no-install-recommends && rm -rf /var/lib/apt/lists/* \
 	&& apt-get update \
