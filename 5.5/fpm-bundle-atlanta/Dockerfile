@@ -149,7 +149,8 @@ RUN set -ex \
 		echo 'daemonize = no'; \
 		echo; \
 		echo '[www]'; \
-		echo 'listen = [::]:9000'; \
+		[ -n "$FPM_LISTEN" ] && echo "listen = $FPM_LISTEN"; \
+		[ -z "$FPM_LISTEN" ] && echo "listen = [::]:9000"; \
 	} | tee php-fpm.d/zz-docker.conf
 
 EXPOSE 9000
