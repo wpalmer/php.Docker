@@ -39,6 +39,7 @@ RUN OPENSSL_VERSION="1.0.2d" \
 	&& ./config && make && make install \
 	&& rm -rf /tmp/*
 ENV PHP_CONFIGURE_WITH_OPENSSL --with-openssl=/usr/local/ssl
+ENV SKIP_CLEAR_ENV=1
 RUN apt-get update && apt-get install -y apache2-bin apache2.2-common --no-install-recommends && rm -rf /var/lib/apt/lists/*
 
 RUN rm -rf /var/www/html && mkdir -p /var/lock/apache2 /var/run/apache2 /var/log/apache2 /var/www/html && chown -R www-data:www-data /var/lock/apache2 /var/run/apache2 /var/log/apache2 /var/www/html
