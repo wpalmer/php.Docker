@@ -100,6 +100,7 @@ RUN set -ex \
 			echo 'include=etc/php-fpm.d/*.conf'; \
 		} | tee php-fpm.conf; \
 	fi \
+	&& sed -i 's/^listen = 127.0.0.1:9000/;&/' php-fpm.d/www.conf \
 	&& { \
 		echo '[global]'; \
 		echo 'error_log = /proc/self/fd/2'; \
