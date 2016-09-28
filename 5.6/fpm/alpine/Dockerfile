@@ -1,7 +1,13 @@
-FROM alpine:3.3
+#
+# NOTE: THIS DOCKERFILE IS GENERATED VIA "update.sh"
+#
+# PLEASE DO NOT EDIT IT DIRECTLY.
+#
 
-# phpize deps
-RUN apk add --no-cache --virtual .phpize-deps \
+FROM alpine:3.4
+
+# persistent / runtime deps
+ENV PHPIZE_DEPS \
 		autoconf \
 		file \
 		g++ \
@@ -10,11 +16,11 @@ RUN apk add --no-cache --virtual .phpize-deps \
 		make \
 		pkgconf \
 		re2c
-
-# persistent / runtime deps
 RUN apk add --no-cache --virtual .persistent-deps \
 		ca-certificates \
-		curl
+		curl \
+		tar \
+		xz
 
 # ensure www-data user exists
 RUN set -x \
@@ -34,49 +40,64 @@ ENV PHP_EXTRA_CONFIGURE_ARGS --enable-fpm --with-fpm-user=www-data --with-fpm-gr
 
 ENV GPG_KEYS 0BD78B5F97500D450838F95DFE857D9A90D90EC1 6E4F6AB321FDC07F2C332E3AC2BF0BC433CFC8B3
 
-ENV PHP_VERSION 5.6.21
-ENV PHP_FILENAME php-5.6.21.tar.xz
-ENV PHP_SHA256 566ff1a486cb0485ed477a91ea292423f77a58671270ff73b74e67e3ce7084f9
+ENV PHP_VERSION 5.6.26
+ENV PHP_FILENAME php-5.6.26.tar.xz
+ENV PHP_SHA256 203a854f0f243cb2810d1c832bc871ff133eccdf1ff69d32846f93bc1bef58a8
 
 RUN set -xe \
-	&& apk add --no-cache --virtual .build-deps \
-		curl-dev \
+	&& apk add --no-cache --virtual .fetch-deps \
 		gnupg \
-		libedit-dev \
-		libxml2-dev \
-		openssl-dev \
-		sqlite-dev \
-	&& curl -fSL "http://php.net/get/$PHP_FILENAME/from/this/mirror" -o "$PHP_FILENAME" \
-	&& echo "$PHP_SHA256 *$PHP_FILENAME" | sha256sum -c - \
-	&& curl -fSL "http://php.net/get/$PHP_FILENAME.asc/from/this/mirror" -o "$PHP_FILENAME.asc" \
+	&& mkdir -p /usr/src \
+	&& cd /usr/src \
+	&& curl -fSL "https://secure.php.net/get/$PHP_FILENAME/from/this/mirror" -o php.tar.xz \
+	&& echo "$PHP_SHA256 *php.tar.xz" | sha256sum -c - \
+	&& curl -fSL "https://secure.php.net/get/$PHP_FILENAME.asc/from/this/mirror" -o php.tar.xz.asc \
 	&& export GNUPGHOME="$(mktemp -d)" \
 	&& for key in $GPG_KEYS; do \
 		gpg --keyserver ha.pool.sks-keyservers.net --recv-keys "$key"; \
 	done \
-	&& gpg --batch --verify "$PHP_FILENAME.asc" "$PHP_FILENAME" \
-	&& rm -r "$GNUPGHOME" "$PHP_FILENAME.asc" \
-	&& mkdir -p /usr/src \
-	&& tar -Jxf "$PHP_FILENAME" -C /usr/src \
-	&& mv "/usr/src/php-$PHP_VERSION" /usr/src/php \
-	&& rm "$PHP_FILENAME" \
+	&& gpg --batch --verify php.tar.xz.asc php.tar.xz \
+	&& rm -r "$GNUPGHOME" \
+	&& apk del .fetch-deps
+
+COPY docker-php-source /usr/local/bin/
+
+RUN set -xe \
+	&& apk add --no-cache --virtual .build-deps \
+		$PHPIZE_DEPS \
+		curl-dev \
+		libedit-dev \
+		libxml2-dev \
+		openssl-dev \
+		sqlite-dev \
+	\
+	&& docker-php-source extract \
 	&& cd /usr/src/php \
 	&& ./configure \
 		--with-config-file-path="$PHP_INI_DIR" \
 		--with-config-file-scan-dir="$PHP_INI_DIR/conf.d" \
-		$PHP_EXTRA_CONFIGURE_ARGS \
+		\
 		--disable-cgi \
-# --enable-mysqlnd is included here because it's harder to compile after the fact than extensions are (since it's a plugin for several extensions, not an extension in itself)
-		--enable-mysqlnd \
+		\
+# --enable-ftp is included here because ftp_ssl_connect() needs ftp to be compiled statically (see https://github.com/docker-library/php/issues/236)
+		--enable-ftp \
 # --enable-mbstring is included here because otherwise there's no way to get pecl to use it properly (see https://github.com/docker-library/php/issues/195)
 		--enable-mbstring \
+# --enable-mysqlnd is included here because it's harder to compile after the fact than extensions are (since it's a plugin for several extensions, not an extension in itself)
+		--enable-mysqlnd \
+		\
 		--with-curl \
 		--with-libedit \
 		--with-openssl \
 		--with-zlib \
+		\
+		$PHP_EXTRA_CONFIGURE_ARGS \
 	&& make -j"$(getconf _NPROCESSORS_ONLN)" \
 	&& make install \
 	&& { find /usr/local/bin /usr/local/sbin -type f -perm +0111 -exec strip --strip-all '{}' + || true; } \
 	&& make clean \
+	&& docker-php-source delete \
+	\
 	&& runDeps="$( \
 		scanelf --needed --nobanner --recursive /usr/local \
 			| awk '{ gsub(/,/, "\nso:", $2); print "so:" $2 }' \
@@ -84,7 +105,8 @@ RUN set -xe \
 			| xargs -r apk info --installed \
 			| sort -u \
 	)" \
-	&& apk add --virtual .php-rundeps $runDeps \
+	&& apk add --no-cache --virtual .php-rundeps $runDeps \
+	\
 	&& apk del .build-deps
 
 COPY docker-php-ext-* /usr/local/bin/

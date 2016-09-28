@@ -1,7 +1,13 @@
+#
+# NOTE: THIS DOCKERFILE IS GENERATED VIA "update.sh"
+#
+# PLEASE DO NOT EDIT IT DIRECTLY.
+#
+
 FROM debian:jessie
 
-# phpize deps
-RUN apt-get update && apt-get install -y \
+# persistent / runtime deps
+ENV PHPIZE_DEPS \
 		autoconf \
 		file \
 		g++ \
@@ -9,16 +15,15 @@ RUN apt-get update && apt-get install -y \
 		libc-dev \
 		make \
 		pkg-config \
-		re2c \
-	--no-install-recommends && rm -r /var/lib/apt/lists/*
-
-# persistent / runtime deps
+		re2c
 RUN apt-get update && apt-get install -y \
+		$PHPIZE_DEPS \
 		ca-certificates \
 		curl \
 		libedit2 \
 		libsqlite3-0 \
 		libxml2 \
+		xz-utils \
 	--no-install-recommends && rm -r /var/lib/apt/lists/*
 
 ENV PHP_INI_DIR /usr/local/etc/php
@@ -31,10 +36,25 @@ ENV PHP_EXTRA_CONFIGURE_ARGS --enable-fpm --with-fpm-user=www-data --with-fpm-gr
 
 ENV GPG_KEYS 0B96609E270F565C13292B24C13C70B87267B52D 0BD78B5F97500D450838F95DFE857D9A90D90EC1 F38252826ACD957EF380D39F2F7956BC5DA04B5D
 
-ENV PHP_VERSION 5.5.35
-ENV PHP_FILENAME php-5.5.35.tar.xz
-ENV PHP_SHA256 9bef96634af853960be085690b2f4cea5850b749ea950942769b22b1a9f24873
-ENV PHP_MD5 5b4af75b14f7e7d4941cafa1c6d26a33
+ENV PHP_VERSION 5.5.38
+ENV PHP_FILENAME php-5.5.38.tar.xz
+ENV PHP_SHA256 cb527c44b48343c8557fe2446464ff1d4695155a95601083e5d1f175df95580f
+ENV PHP_MD5 72302e26f153687e2ca922909f927443
+
+RUN set -xe \
+	&& cd /usr/src \
+	&& curl -fSL "https://secure.php.net/get/$PHP_FILENAME/from/this/mirror" -o php.tar.xz \
+	&& if [ ! "$PHP_SHA256" = "x" ]; then echo "$PHP_SHA256 *php.tar.xz" | sha256sum -c -; fi \
+	&& if [ ! "$PHP_MD5" = "x" ]; then echo "$PHP_MD5 *php.tar.xz" | md5sum -c -; fi \
+	&& curl -fSL "https://secure.php.net/get/$PHP_FILENAME.asc/from/this/mirror" -o php.tar.xz.asc \
+	&& export GNUPGHOME="$(mktemp -d)" \
+	&& for key in $GPG_KEYS; do \
+		gpg --keyserver ha.pool.sks-keyservers.net --recv-keys "$key"; \
+	done \
+	&& gpg --batch --verify php.tar.xz.asc php.tar.xz \
+	&& rm -r "$GNUPGHOME"
+
+COPY docker-php-source /usr/local/bin/
 
 RUN set -xe \
 	&& buildDeps=" \
@@ -44,41 +64,37 @@ RUN set -xe \
 		libsqlite3-dev \
 		libssl-dev \
 		libxml2-dev \
-		xz-utils \
 	" \
 	&& apt-get update && apt-get install -y $buildDeps --no-install-recommends && rm -rf /var/lib/apt/lists/* \
-	&& curl -fSL "http://php.net/get/$PHP_FILENAME/from/this/mirror" -o "$PHP_FILENAME" \
-	&& if [ ! "$PHP_SHA256" = "x" ]; then echo "$PHP_SHA256 *$PHP_FILENAME" | sha256sum -c -; fi \
-	&& if [ ! "$PHP_MD5" = "x" ]; then echo "$PHP_MD5 *$PHP_FILENAME" | md5sum -c -; fi \
-	&& curl -fSL "http://php.net/get/$PHP_FILENAME.asc/from/this/mirror" -o "$PHP_FILENAME.asc" \
-	&& export GNUPGHOME="$(mktemp -d)" \
-	&& for key in $GPG_KEYS; do \
-		gpg --keyserver ha.pool.sks-keyservers.net --recv-keys "$key"; \
-	done \
-	&& gpg --batch --verify "$PHP_FILENAME.asc" "$PHP_FILENAME" \
-	&& rm -r "$GNUPGHOME" "$PHP_FILENAME.asc" \
-	&& mkdir -p /usr/src/php \
-	&& tar -xf "$PHP_FILENAME" -C /usr/src/php --strip-components=1 \
-	&& rm "$PHP_FILENAME" \
+	\
+	&& docker-php-source extract \
 	&& cd /usr/src/php \
 	&& ./configure \
 		--with-config-file-path="$PHP_INI_DIR" \
 		--with-config-file-scan-dir="$PHP_INI_DIR/conf.d" \
-		$PHP_EXTRA_CONFIGURE_ARGS \
+		\
 		--disable-cgi \
-# --enable-mysqlnd is included here because it's harder to compile after the fact than extensions are (since it's a plugin for several extensions, not an extension in itself)
-		--enable-mysqlnd \
+		\
+# --enable-ftp is included here because ftp_ssl_connect() needs ftp to be compiled statically (see https://github.com/docker-library/php/issues/236)
+		--enable-ftp \
 # --enable-mbstring is included here because otherwise there's no way to get pecl to use it properly (see https://github.com/docker-library/php/issues/195)
 		--enable-mbstring \
+# --enable-mysqlnd is included here because it's harder to compile after the fact than extensions are (since it's a plugin for several extensions, not an extension in itself)
+		--enable-mysqlnd \
+		\
 		--with-curl \
 		--with-libedit \
 		$PHP_CONFIGURE_WITH_OPENSSL \
 		--with-zlib \
+		\
+		$PHP_EXTRA_CONFIGURE_ARGS \
 	&& make -j"$(nproc)" \
 	&& make install \
 	&& { find /usr/local/bin /usr/local/sbin -type f -executable -exec strip --strip-all '{}' + || true; } \
 	&& make clean \
-	&& apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false -o APT::AutoRemove::SuggestsImportant=false $buildDeps
+	&& docker-php-source delete \
+	\
+	&& apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false $buildDeps
 
 COPY docker-php-ext-* /usr/local/bin/
 
