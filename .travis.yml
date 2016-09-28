@@ -12,8 +12,10 @@ env:
   - VERSION=5.6 VARIANT=
   - VERSION=5.6 VARIANT=alpine
   - VERSION=5.6 VARIANT=apache
+  - VERSION=5.6 VARIANT=apache-bundle-atlanta
   - VERSION=5.6 VARIANT=fpm
   - VERSION=5.6 VARIANT=fpm/alpine
+  - VERSION=5.6 VARIANT=fpm-bundle-atlanta
   - VERSION=5.6 VARIANT=zts
   - VERSION=5.6 VARIANT=zts/alpine
   - VERSION=5.5 VARIANT=
