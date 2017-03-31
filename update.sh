@@ -2,12 +2,19 @@
 set -e
 
 declare -A gpgKeys=(
+	# https://wiki.php.net/todo/php71
+	# davey & krakjoe
+	# https://secure.php.net/downloads.php#gpg-7.1
+	[7.1]='A917B1ECDA84AEC2B568FED6F50ABC807BD5DCD0 528995BFEDFBA7191D46839EF9BA0ADA31CBD89E'
+
 	# https://wiki.php.net/todo/php70
-	# ab
-	[7.0]='1A4E8B7277C42E53DBA9C7B9BCAA30EA9C0D5763'
+	# ab & tyrael
+	# https://secure.php.net/downloads.php#gpg-7.0
+	[7.0]='1A4E8B7277C42E53DBA9C7B9BCAA30EA9C0D5763 6E4F6AB321FDC07F2C332E3AC2BF0BC433CFC8B3'
 
 	# https://wiki.php.net/todo/php56
 	# jpauli & tyrael
+	# https://secure.php.net/downloads.php#gpg-5.6
 	[5.6]='0BD78B5F97500D450838F95DFE857D9A90D90EC1 6E4F6AB321FDC07F2C332E3AC2BF0BC433CFC8B3'
 
 	# end-of-life
@@ -35,64 +42,75 @@ generated_warning() {
 	EOH
 }
 
-jsonSh="$(curl -fsSL 'https://raw.githubusercontent.com/dominictarr/JSON.sh/ed3f9dd285ebd4183934adb54ea5a2fda6b25a98/JSON.sh')"
-
 travisEnv=
 for version in "${versions[@]}"; do
-	packagesJson="$(curl -fsSL "https://secure.php.net/releases/index.php?json&max=200&version=${version%%.*}" | bash -- <(echo "$jsonSh") -l)"
-	echo '######'
-	echo "$packagesJson"
-	echo '######'
-	fullVersion=
-	filename=
-	sha256=
-	md5=
-	for comp in xz bz2 gz; do
-		fullVersion="$(
-			echo "$packagesJson" \
-				| grep '^\["'"$version"'[."].*,"filename"\].*\.'"$comp"'"' \
-				| cut -d'"' -f2 \
-				| head -1
-		)"
-		if [ "$fullVersion" ]; then
-			sourceNumber="$(
-				echo "$packagesJson" \
-					| grep '^\["'"$fullVersion"'","source",.*,"filename"\].*\.'"$comp"'"' \
-					| cut -d, -f3
-			)"
-			filename="$(
-				echo "$packagesJson" \
-					| grep '^\["'"$fullVersion"'","source",'"$sourceNumber"',"filename"\]' \
-					| cut -d$'\t' -f2 | cut -d'"' -f2
-			)"
-			sha256="$(
-				echo "$packagesJson" \
-					| grep '^\["'"$fullVersion"'","source",'"$sourceNumber"',"sha256"\]' \
-					| cut -d$'\t' -f2 | cut -d'"' -f2
-			)"
-			md5="$(
-				echo "$packagesJson" \
-					| grep '^\["'"$fullVersion"'","source",'"$sourceNumber"',"md5"\]' \
-					| cut -d$'\t' -f2 | cut -d'"' -f2
-			)"
-			break
-		fi
-	done
+	rcVersion="${version%-rc}"
 
-	if [ -z "$fullVersion" ]; then
-		echo >&2 "warning: missing full version for $version; skipping"
-		continue
+	# scrape the relevant API based on whether we're looking for pre-releases
+	apiUrl="https://secure.php.net/releases/index.php?json&max=1000&version=${rcVersion%%.*}"
+	apiJqExpr='
+		(keys[] | select(startswith("'"$rcVersion"'."))) as $version
+		| [ $version, (
+			.[$version].source[]
+			| select(((.filename|type) == "string") and (.filename | endswith(".xz")))
+			|
+				"https://secure.php.net/get/" + .filename + "/from/this/mirror",
+				"https://secure.php.net/get/" + .filename + ".asc/from/this/mirror",
+				.sha256 // "",
+				.md5 // ""
+		) ]
+	'
+	if [ "$rcVersion" != "$version" ]; then
+		apiUrl='https://qa.php.net/api.php?type=qa-releases&format=json'
+		apiJqExpr='
+			.releases[]
+			| select(.version | startswith("7.1."))
+			| [
+				.version,
+				.files.xz.path // "",
+				"",
+				.files.xz.sha256 // "",
+				.files.xz.md5 // ""
+			]
+		'
+	fi
+	IFS=$'\n'
+	possibles=( $(
+		curl -fsSL "$apiUrl" \
+			| jq --raw-output "$apiJqExpr | @sh" \
+			| sort -rV
+	) )
+	unset IFS
+
+	if [ "${#possibles[@]}" -eq 0 ]; then
+		echo >&2
+		echo >&2 "error: unable to determine available releases of $version"
+		echo >&2
+		exit 1
 	fi
 
-	gpgKey="${gpgKeys[$version]}"
+	# format of "possibles" array entries is "VERSION URL.TAR.XZ URL.TAR.XZ.ASC SHA256 MD5" (each value shell quoted)
+	#   see the "apiJqExpr" values above for more details
+	eval "possi=( ${possibles[0]} )"
+	fullVersion="${possi[0]}"
+	url="${possi[1]}"
+	ascUrl="${possi[2]}"
+	sha256="${possi[3]}"
+	md5="${possi[4]}"
+
+	gpgKey="${gpgKeys[$rcVersion]}"
 	if [ -z "$gpgKey" ]; then
 		echo >&2 "ERROR: missing GPG key fingerprint for $version"
 		echo >&2 "  try looking on https://secure.php.net/downloads.php#gpg-$version"
 		exit 1
 	fi
 
-	dockerfiles=()
+	# if we don't have a .asc URL, let's see if we can figure one out :)
+	if [ -z "$ascUrl" ] && wget -q --spider "$url.asc"; then
+		ascUrl="$url.asc"
+	fi
 
+	dockerfiles=()
 	if [ -f "$version-Dockerfile-block-1" ]; then
 		echo "Generating $version/Dockerfile from $base + $version-Dockerfile-block-*"
 		{
@@ -113,14 +131,20 @@ for version in "${versions[@]}"; do
 		{ generated_warning; cat Dockerfile-debian.template; } > "$version/Dockerfile"
 	fi
 
-	cp -v docker-php-ext-* "$version/"
-	cp -v docker-php-source "$version/"
+	cp -v \
+		docker-php-entrypoint \
+		docker-php-ext-* \
+		docker-php-source \
+		"$version/"
 	dockerfiles+=( "$version/Dockerfile" )
 
 	if [ -d "$version/alpine" ]; then
 		{ generated_warning; cat Dockerfile-alpine.template; } > "$version/alpine/Dockerfile"
-		cp -v docker-php-ext-* "$version/alpine/"
-		cp -v docker-php-source "$version/alpine/"
+		cp -v \
+			docker-php-entrypoint \
+			docker-php-ext-* \
+			docker-php-source \
+			"$version/alpine/"
 		dockerfiles+=( "$version/alpine/Dockerfile" )
 	fi
 
@@ -166,26 +190,32 @@ for version in "${versions[@]}"; do
 				system("cat '$variant'-Dockerfile-block-" ab)
 			}
 		' "$base" > "$version/$target/Dockerfile"
-		cp -v docker-php-ext-* "$version/$target/"
-		cp -v docker-php-source "$version/$target/"
+		cp -v \
+			docker-php-entrypoint \
+			docker-php-ext-* \
+			docker-php-source \
+			"$version/$target/"
 		dockerfiles+=( "$version/$target/Dockerfile" )
 	done
 
-	if [ -z "$fullVersion" ]; then
-		echo >&2 "ERROR: missing $version in $packagesUrl"
-		continue
-	fi
-
 	(
 		set -x
-		sed -ri '
-			s!%%PHP_VERSION%%!'"$fullVersion"'!;
-			s!%%PHP_FILENAME%%!'"$filename"'!;
-			s!%%PHP_SHA256%%!'"${sha256:-x}"'!;
-			s!%%PHP_MD5%%!'"${md5:-x}"'!;
-			s!%%GPG_KEYS%%!'"$gpgKey"'!;
-		' "${dockerfiles[@]}"
+		sed -ri \
+			-e 's!%%PHP_VERSION%%!'"$fullVersion"'!' \
+			-e 's!%%GPG_KEYS%%!'"$gpgKey"'!' \
+			-e 's!%%PHP_URL%%!'"$url"'!' \
+			-e 's!%%PHP_ASC_URL%%!'"$ascUrl"'!' \
+			-e 's!%%PHP_SHA256%%!'"$sha256"'!' \
+			-e 's!%%PHP_MD5%%!'"$md5"'!' \
+			"${dockerfiles[@]}"
 	)
+
+	# update entrypoint commands
+	for dockerfile in "${dockerfiles[@]}"; do
+		cmd="$(awk '$1 == "CMD" { $1 = ""; print }' "$dockerfile" | tail -1 | jq --raw-output '.[0]')"
+		entrypoint="$(dirname "$dockerfile")/docker-php-entrypoint"
+		sed -i 's! php ! '"$cmd"' !g' "$entrypoint"
+	done
 
 	newTravisEnv=
 	for dockerfile in "${dockerfiles[@]}"; do
