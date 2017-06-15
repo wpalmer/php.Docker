@@ -1,26 +1,49 @@
 #!/bin/bash
 set -e
 
+# https://secure.php.net/gpg-keys.php
 declare -A gpgKeys=(
+	# https://wiki.php.net/todo/php72
+	# pollita & remi
+	# https://secure.php.net/downloads.php#gpg-7.2
+	# https://secure.php.net/gpg-keys.php#gpg-7.2
+	[7.2]='1729F83938DA44E27BA0F4D3DBDB397470D12172 B1B44D8F021E4E2D6021E995DC9FF8D3EE5AF27F'
+
 	# https://wiki.php.net/todo/php71
 	# davey & krakjoe
 	# https://secure.php.net/downloads.php#gpg-7.1
+	# https://secure.php.net/gpg-keys.php#gpg-7.1
 	[7.1]='A917B1ECDA84AEC2B568FED6F50ABC807BD5DCD0 528995BFEDFBA7191D46839EF9BA0ADA31CBD89E'
 
 	# https://wiki.php.net/todo/php70
 	# ab & tyrael
 	# https://secure.php.net/downloads.php#gpg-7.0
+	# https://secure.php.net/gpg-keys.php#gpg-7.0
 	[7.0]='1A4E8B7277C42E53DBA9C7B9BCAA30EA9C0D5763 6E4F6AB321FDC07F2C332E3AC2BF0BC433CFC8B3'
 
 	# https://wiki.php.net/todo/php56
 	# jpauli & tyrael
 	# https://secure.php.net/downloads.php#gpg-5.6
+	# https://secure.php.net/gpg-keys.php#gpg-5.6
 	[5.6]='0BD78B5F97500D450838F95DFE857D9A90D90EC1 6E4F6AB321FDC07F2C332E3AC2BF0BC433CFC8B3'
 
 	# end-of-life
 	[5.5]='0B96609E270F565C13292B24C13C70B87267B52D 0BD78B5F97500D450838F95DFE857D9A90D90EC1 F38252826ACD957EF380D39F2F7956BC5DA04B5D'
 )
 # see https://secure.php.net/downloads.php
+
+defaultDebianSuite='stretch'
+declare -A debianSuites=(
+	[5.6]='jessie'
+	[7.0]='jessie'
+	[7.1]='jessie'
+)
+defaultAlpineVersion='3.6'
+declare -A alpineVersions=(
+	[5.6]='3.4'
+	[7.0]='3.4'
+	[7.1]='3.4'
+)
 
 cd "$(dirname "$(readlink -f "$BASH_SOURCE")")"
 
@@ -63,7 +86,7 @@ for version in "${versions[@]}"; do
 		apiUrl='https://qa.php.net/api.php?type=qa-releases&format=json'
 		apiJqExpr='
 			.releases[]
-			| select(.version | startswith("7.1."))
+			| select(.version | startswith("'"$rcVersion"'."))
 			| [
 				.version,
 				.files.xz.path // "",
@@ -197,6 +220,9 @@ for version in "${versions[@]}"; do
 		dockerfiles+=( "$version/$target/Dockerfile" )
 	done
 
+	debianSuite="${debianSuites[$rcVersion]:-$defaultDebianSuite}"
+	alpineVersion="${alpineVersions[$rcVersion]:-$defaultAlpineVersion}"
+
 	(
 		set -x
 		sed -ri \
@@ -206,6 +232,8 @@ for version in "${versions[@]}"; do
 			-e 's!%%PHP_ASC_URL%%!'"$ascUrl"'!' \
 			-e 's!%%PHP_SHA256%%!'"$sha256"'!' \
 			-e 's!%%PHP_MD5%%!'"$md5"'!' \
+			-e 's!%%DEBIAN_SUITE%%!'"$debianSuite"'!' \
+			-e 's!%%ALPINE_VERSION%%!'"$alpineVersion"'!' \
 			"${dockerfiles[@]}"
 	)
 

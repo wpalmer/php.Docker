@@ -52,9 +52,9 @@ ENV PHP_LDFLAGS="-Wl,-O1 -Wl,--hash-style=both -pie"
 
 ENV GPG_KEYS A917B1ECDA84AEC2B568FED6F50ABC807BD5DCD0 528995BFEDFBA7191D46839EF9BA0ADA31CBD89E
 
-ENV PHP_VERSION 7.1.5
-ENV PHP_URL="https://secure.php.net/get/php-7.1.5.tar.xz/from/this/mirror" PHP_ASC_URL="https://secure.php.net/get/php-7.1.5.tar.xz.asc/from/this/mirror"
-ENV PHP_SHA256="d149a3c396c45611f5dc6bf14be190f464897145a76a8e5851cf18ff7094f6ac" PHP_MD5="fb0702321c7aceac68c82b8c7a10d196"
+ENV PHP_VERSION 7.1.6
+ENV PHP_URL="https://secure.php.net/get/php-7.1.6.tar.xz/from/this/mirror" PHP_ASC_URL="https://secure.php.net/get/php-7.1.6.tar.xz.asc/from/this/mirror"
+ENV PHP_SHA256="01584dc521ab7ec84b502b61952f573652fe6aa00c18d6d844fb9209f14b245b" PHP_MD5="eafc7a79cc8cc62c9292c96f9c9ccf90"
 
 RUN set -xe; \
 	\
@@ -133,6 +133,7 @@ RUN set -xe \
 	&& make install \
 	&& { find /usr/local/bin /usr/local/sbin -type f -perm +0111 -exec strip --strip-all '{}' + || true; } \
 	&& make clean \
+	&& cd / \
 	&& docker-php-source delete \
 	\
 	&& runDeps="$( \
@@ -144,7 +145,11 @@ RUN set -xe \
 	)" \
 	&& apk add --no-cache --virtual .php-rundeps $runDeps \
 	\
-	&& apk del .build-deps
+	&& apk del .build-deps \
+	\
+# https://github.com/docker-library/php/issues/443
+	&& pecl update-channels \
+	&& rm -rf /tmp/pear ~/.pearrc
 
 COPY docker-php-ext-* docker-php-entrypoint /usr/local/bin/
 
