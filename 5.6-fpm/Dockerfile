@@ -10,6 +10,9 @@ RUN set -xe \
 		libxml2-dev \
 		libxslt-dev \
 	" \
+	&& runDeps=" \
+		msmtp \
+	" \
 	&& phpExt=" \
 		bcmath \
 		curl \
@@ -25,7 +28,7 @@ RUN set -xe \
 		xsl \
 		zip \
 	" \
-	&& apt-get update && apt-get install -y $buildDeps --no-install-recommends && rm -rf /var/lib/apt/lists/* \
+	&& apt-get update && apt-get install -y $buildDeps $runDeps --no-install-recommends && rm -rf /var/lib/apt/lists/* \
 	&& mkdir -p /usr/include/freetype2/freetype \
 	&& ln -s /usr/include/freetype2/freetype.h /usr/include/freetype2/freetype/freetype.h \
 	&& docker-php-ext-configure gd --with-freetype-dir=/usr/include/ --with-jpeg-dir=/usr/include/ \
