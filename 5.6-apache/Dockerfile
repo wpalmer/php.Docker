@@ -1,6 +1,8 @@
 FROM php:5.6-apache
 RUN set -xe \
 	&& buildDeps=" \
+		libfreetype6-dev \
+		libjpeg62-turbo-dev \
 		libcurl4-openssl-dev \
 		libpng-dev \
 		libicu-dev \
@@ -24,6 +26,9 @@ RUN set -xe \
 		zip \
 	" \
 	&& apt-get update && apt-get install -y $buildDeps --no-install-recommends && rm -rf /var/lib/apt/lists/* \
+	&& mkdir -p /usr/include/freetype2/freetype \
+	&& ln -s /usr/include/freetype2/freetype.h /usr/include/freetype2/freetype/freetype.h \
+	&& docker-php-ext-configure gd --with-freetype-dir=/usr/include/ --with-jpeg-dir=/usr/include/ \
 	&& docker-php-ext-install $phpExt \
 	&& apt-get purge -y $buildDeps \
 	&& cd /usr/bin \
