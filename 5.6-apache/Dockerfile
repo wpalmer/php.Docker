@@ -30,7 +30,6 @@ RUN set -xe \
 	" \
 	&& apt-get update && apt-get install -y $buildDeps $runDeps --no-install-recommends && rm -rf /var/lib/apt/lists/* \
 	&& mkdir -p /usr/include/freetype2/freetype \
-	&& ln -s /usr/include/freetype2/freetype.h /usr/include/freetype2/freetype/freetype.h \
 	&& docker-php-ext-configure gd --with-freetype-dir=/usr/include/ --with-jpeg-dir=/usr/include/ \
 	&& docker-php-ext-install $phpExt \
 	&& apt-get purge -y $buildDeps \
