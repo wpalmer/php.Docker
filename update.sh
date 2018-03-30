@@ -2,7 +2,8 @@
 base="$(dirname "${BASH_SOURCE[0]}")"
 
 for version in \
-	5.6
+	5.6 \
+	7.2
 do
 	for variant in \
 		apache \
