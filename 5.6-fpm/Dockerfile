@@ -1,4 +1,5 @@
 FROM php:5.6-fpm
+ENV PHP_VERSION 5.6
 RUN set -xe \
 	&& buildDeps=" \
 		libfreetype6-dev \
@@ -19,7 +20,6 @@ RUN set -xe \
 		gd \
 		intl \
 		mbstring \
-		mcrypt \
 		pdo \
 		pdo_mysql \
 		simplexml \
@@ -28,6 +28,7 @@ RUN set -xe \
 		xsl \
 		zip \
 	" \
+	&& if [ `printf '%s\n%s\n' "$PHP_VERSION" "7.0" | sort -V | sed '1q'` != "7.0" ]; then phpExt="$phpExt mcrypt"; fi \
 	&& apt-get update && apt-get install -y $buildDeps $runDeps --no-install-recommends && rm -rf /var/lib/apt/lists/* \
 	&& mkdir -p /usr/include/freetype2/freetype \
 	&& docker-php-ext-configure gd --with-freetype-dir=/usr/include/ --with-jpeg-dir=/usr/include/ \
