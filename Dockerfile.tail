@@ -4,17 +4,16 @@ RUN set -xe \
 		libicu-dev \
 		libjpeg62-turbo-dev \
 		libmcrypt-dev \
-		libmysqlclient-dev \
-		libpng12-dev \
+		default-libmysqlclient-dev \
+		libpng-dev \
 		libxml2-dev \
 	" \
 	&& runDeps=" \
 		libfreetype6 \
-		libicu52 \
+		libicu57 \
 		libjpeg62 \
 		libmcrypt4 \
-		libmysqlclient18 \
-		libpng12-0 \
+		libpng16-16 \
 		libxml2 \
 		locales-all \
 		msmtp \
@@ -23,7 +22,6 @@ RUN set -xe \
 	&& apt-get update \
 	&& apt-get install -y  \
 	&& docker-php-ext-configure intl \
-	&& mkdir -p /usr/include/freetype2/freetype && ln -s /usr/include/freetype2/freetype.h /usr/include/freetype2/freetype/freetype.h \
 	&& docker-php-ext-configure gd --with-freetype-dir=/usr/include/ --with-jpeg-dir=/usr/include/ \
 	&& docker-php-ext-install -j$(nproc) bcmath ctype dom gd iconv intl json mbstring mcrypt mysql mysqli pdo pdo_mysql soap \
 	&& rm -rf /usr/include/freetype2/freetype \
