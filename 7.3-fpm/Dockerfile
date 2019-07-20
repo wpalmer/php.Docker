@@ -1,5 +1,5 @@
-FROM php:5.6-fpm
-ENV PHP_VERSION 5.6
+FROM php:7.3-fpm
+ENV PHP_VERSION 7.3
 RUN set -xe \
 	&& buildDeps=" \
 		libfreetype6-dev \

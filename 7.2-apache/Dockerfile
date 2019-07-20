@@ -10,6 +10,7 @@ RUN set -xe \
 		libmcrypt-dev \
 		libxml2-dev \
 		libxslt-dev \
+		libzip-dev \
 	" \
 	&& runDeps=" \
 		msmtp \
