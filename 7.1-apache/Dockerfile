@@ -21,6 +21,7 @@ RUN set -xe \
 		gd \
 		intl \
 		mbstring \
+		mysqli \
 		pdo \
 		pdo_mysql \
 		simplexml \
@@ -29,6 +30,7 @@ RUN set -xe \
 		xsl \
 		zip \
 	" \
+	&& if [ `printf '%s\n%s\n' "$PHP_VERSION" "7.0" | sort -V | sed '1q'` != "7.0" ]; then phpExt="$phpExt mysql"; fi \
 	&& if [ `printf '%s\n%s\n' "$PHP_VERSION" "7.2" | sort -V | sed '1q'` != "7.2" ]; then phpExt="$phpExt mcrypt"; fi \
 	&& apt-get update && apt-get install -y $buildDeps $runDeps --no-install-recommends && rm -rf /var/lib/apt/lists/* \
 	&& mkdir -p /usr/include/freetype2/freetype \
