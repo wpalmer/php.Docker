@@ -14,8 +14,8 @@ do
 	do
 		tag="${version}-${variant}"
 		mkdir -p "${base}/${tag}"
-		echo "FROM php:${tag}" > "${base}/${tag}/Dockerfile"
-		echo "ENV PHP_VERSION $version" >> "${base}/${tag}/Dockerfile"
+		echo "ARG PHP_VERSION=$version" > "${base}/${tag}/Dockerfile"
+		echo "ARG PHP_VARIANT=$variant" >> "${base}/${tag}/Dockerfile"
 		cat Dockerfile.tail >> "${base}/${tag}/Dockerfile"
 	done
 done
